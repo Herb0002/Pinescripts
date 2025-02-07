@@ -1,0 +1,46 @@
+//@version=5
+indicator("SOM Trigger - Sell Only Mode", overlay=true)
+
+// === Benutzereingaben ===
+SOM_trigger_length = input.int(12, title="Anzahl der Kerzen (Lookback)", minval=1)
+
+// Parameter für Preisrückgang (wird nun zur Aktivierung der long-Logik verwendet)
+price_drop_trigger         = input.float(10.5, title="Price Drop Trigger (%)", step=0.1)
+price_drop_recover_trigger = input.float(8.0,  title="Price Drop Recover Trigger (%)", step=0.1)
+
+// Parameter für Preisaufwärtsbewegung (wird nun zur Aktivierung der short-Logik verwendet)
+price_rise_trigger         = input.float(10.5, title="Price Rise Trigger (%)", step=0.1)
+price_rise_recover_trigger = input.float(8.0,  title="Price Rise Recover Trigger (%)", step=0.1)
+
+// === Referenzpreis ===
+// Der Referenzpreis wird als Schlusskurs vor SOM_trigger_length Kerzen definiert.
+refPrice = close[SOM_trigger_length]
+
+// === Zustandsvariablen ===
+// Wir speichern den aktiven Zustand der Trigger, sodass der Zustand auch über mehrere Kerzen anhält.
+// ACHTUNG: Die Logik wurde umgedreht – in Sell Only Mode aktiviert ein Preisrückgang (Drop) die Long-Logik,
+// damit nicht mehr gekauft, sondern nur verkauft wird. Umgekehrt aktiviert eine Preisaufwärtsbewegung die Short-Logik.
+var bool longActive  = false
+var bool shortActive = false
+
+// === Long-Logik (bei Preisrückgang, also Crash) ===
+// Aktivieren, wenn der Kurs um mindestens price_drop_trigger % gefallen ist.
+if (not longActive) and (close <= refPrice * (1 - price_drop_trigger / 100))
+    longActive := true
+// Rücksetzen, wenn sich der Kurs auf price_drop_recover_trigger % erholt hat.
+if longActive and (close >= refPrice * (1 - price_drop_recover_trigger / 100))
+    longActive := false
+
+// === Short-Logik (bei Preisaufwärtsbewegung) ===
+// Aktivieren, wenn der Kurs um mindestens price_rise_trigger % gestiegen ist.
+if (not shortActive) and (close >= refPrice * (1 + price_rise_trigger / 100))
+    shortActive := true
+// Rücksetzen, wenn der Kurs auf price_rise_recover_trigger % sinkt.
+if shortActive and (close <= refPrice * (1 + price_rise_recover_trigger / 100))
+    shortActive := false
+
+// === Hintergrundfarbe setzen ===
+// In dieser Umsetzung wird – wie im Original – bei aktivem longActive (also bei fallenden Kursen, Sell Only Mode)
+// der Hintergrund grün angezeigt, und bei aktivem shortActive (bei Kursanstieg) rot.
+// (Falls beide Trigger aktiv sein sollten, hat longActive Vorrang.)
+bgcolor(longActive ? color.new(color.green, 80) : shortActive ? color.new(color.red, 80) : na)
